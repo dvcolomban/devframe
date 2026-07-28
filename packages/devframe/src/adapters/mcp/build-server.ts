@@ -232,7 +232,7 @@ function registerToolHandlers(
       }
       const tool = ctx.agent.getTool(name)
       const outputSchema = tool
-        ? tool.outputSchema ?? computeOutputSchema(tool, ctx)
+        ? usableOutputSchema(tool.outputSchema ?? computeOutputSchema(tool, ctx))
         : undefined
       const result = await ctx.agent.invoke(name, args ?? {})
       return {
@@ -323,9 +323,21 @@ function registerResourceHandlers(
   })
 }
 
+/**
+ * MCP constrains a tool's `outputSchema` to a JSON Schema of `type:
+ * "object"` — clients (the SDK included) reject anything else. Non-object
+ * return schemas (e.g. a valibot `v.void()` / bare string) simply project
+ * no output schema; the text content still carries the result.
+ */
+function usableOutputSchema(schema: unknown): unknown {
+  return schema && typeof schema === 'object' && (schema as { type?: unknown }).type === 'object'
+    ? schema
+    : undefined
+}
+
 function projectTool(tool: AgentTool, ctx: DevframeNodeContext): Record<string, unknown> {
   const inputSchema = tool.inputSchema ?? computeInputSchema(tool, ctx)
-  const outputSchema = tool.outputSchema ?? computeOutputSchema(tool, ctx)
+  const outputSchema = usableOutputSchema(tool.outputSchema ?? computeOutputSchema(tool, ctx))
   return {
     name: tool.id,
     title: tool.title,
